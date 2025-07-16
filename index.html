@@ -17,18 +17,50 @@
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.20.15/babel.min.js"></script>
   <!-- Recharts (primary CDN) -->
   <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.min.js"></script>
-  <!-- Recharts (fallback CDN) -->
+  <!-- Recharts (fallback CDNs) -->
   <script nonce="xyz123">
-    if (!window.Recharts) {
-      console.warn('Primary Recharts CDN (unpkg) failed to load, attempting fallback CDN (jsdelivr).');
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/recharts.min.js';
-      script.onerror = () => {
-        console.error('Fallback Recharts CDN failed to load.');
-        document.getElementById('error').textContent = 'Error: Both Recharts CDNs failed to load. Charts will not be displayed.';
-      };
-      document.head.appendChild(script);
-    }
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        if (!window.Recharts) {
+          console.warn('Primary Recharts CDN (unpkg) failed to load, attempting fallback CDNs.');
+          const fallbacks = [
+            'https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/recharts.min.js',
+            'https://unpkg.com/recharts@2.10.14/umd/Recharts.min.js' // Older version as second fallback
+          ];
+          let loaded = false;
+          const loadNextFallback = (index) => {
+            if (index >= fallbacks.length || loaded) return;
+            console.log(`Trying fallback CDN ${index + 1}: ${fallbacks[index]}`);
+            const script = document.createElement('script');
+            script.src = fallbacks[index];
+            script.onload = () => {
+              if (window.Recharts) {
+                loaded = true;
+                console.log(`Recharts loaded successfully from fallback CDN: ${fallbacks[index]}`);
+              } else {
+                loadNextFallback(index + 1);
+              }
+            };
+            script.onerror = () => {
+              console.error(`Fallback Recharts CDN failed to load: ${fallbacks[index]}`);
+              loadNextFallback(index + 1);
+              if (index === fallbacks.length - 1 && !loaded) {
+                const errorDiv = document.getElementById('error');
+                if (errorDiv) {
+                  errorDiv.textContent = 'Error: All Recharts CDNs failed to load. Charts will not be displayed.';
+                } else {
+                  console.error('Error: Cannot find #error div to display Recharts failure message.');
+                }
+              }
+            };
+            document.head.appendChild(script);
+          };
+          loadNextFallback(0);
+        } else {
+          console.log('Recharts loaded successfully from primary CDN.');
+        }
+      }, 2000); // 2-second delay to ensure DOM readiness
+    });
   </script>
   <!-- Lucide -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.441.0/dist/umd/lucide.min.js"></script>
@@ -140,8 +172,8 @@
           setRechartsError(errorMsg);
           console.error(errorMsg);
           console.error('Primary CDN: https://unpkg.com/recharts@2.12.7/umd/Recharts.min.js');
-          console.error('Fallback CDN: https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/recharts.min.js');
-          console.error('Verify CDN availability and browser Content Security Policy (CSP).');
+          console.error('Fallback CDNs: https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/recharts.min.js, https://unpkg.com/recharts@2.10.14/umd/Recharts.min.js');
+          console.error('Verify CDN availability, network restrictions, or browser extensions.');
         } else {
           console.log('Recharts loaded successfully:', window.Recharts);
         }
@@ -801,10 +833,17 @@
         ReactDOM.render(<ConstructionDashboard />, root);
       } catch (e) {
         console.error('Failed to render React component:', e);
-        document.getElementById('error').textContent = 'Error: Failed to render dashboard. Check console for details.';
+        const errorDiv = document.getElementById('error');
+        if (errorDiv) {
+          errorDiv.textContent = 'Error: Failed to render dashboard. Check console for details.';
+        }
       }
     } else {
-      document.getElementById('error').textContent = 'Error: Root element not found.';
+      console.error('Error: Root element not found.');
+      const errorDiv = document.getElementById('error');
+      if (errorDiv) {
+        errorDiv.textContent = 'Error: Root element not found.';
+      }
     }
   </script>
   <script nonce="xyz123">
@@ -827,7 +866,12 @@
           document.body.appendChild(script);
         } catch (e) {
           console.error('Failed to compile or transform code:', e);
-          document.getElementById('error').textContent = 'Error: Failed to load dashboard due to CSP or compilation issues. Check console for details.';
+          const errorDiv = document.getElementById('error');
+          if (errorDiv) {
+            errorDiv.textContent = 'Error: Failed to load dashboard due to compilation issues. Check console for details.';
+          } else {
+            console.error('Error: Cannot find #error div to display compilation failure message.');
+          }
         }
       }, 1000);
     };
