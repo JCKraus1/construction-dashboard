@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Construction Project Dashboard</title>
+  <!-- Content Security Policy to allow CDNs -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://unpkg.com; connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com;">
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- React and ReactDOM -->
@@ -13,9 +15,16 @@
   <script src="https://cdn.jsdelivr.net/npm/typescript@5.0.4/lib/typescript.js"></script>
   <!-- Babel for JSX -->
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.20.15/babel.min.js"></script>
-  <!-- Recharts -->
-  <script src="https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/recharts.min.js"></script>
-  <!-- Lucide (not Lucide-React) -->
+  <!-- Recharts (primary CDN) -->
+  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.min.js"></script>
+  <!-- Recharts (fallback CDN) -->
+  <script>
+    if (!window.Recharts) {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/recharts.min.js"></script>');
+      console.warn('Primary Recharts CDN (unpkg) failed to load, attempting fallback CDN (jsdelivr).');
+    }
+  </script>
+  <!-- Lucide -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.441.0/dist/umd/lucide.min.js"></script>
   <!-- XLSX -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.21.0/dist/xlsx.full.min.js"></script>
@@ -121,7 +130,14 @@
 
       useEffect(() => {
         if (!window.Recharts) {
-          setRechartsError('Recharts library failed to load. Charts will not be displayed.');
+          const errorMsg = 'Recharts library failed to load. Charts will not be displayed. Check console for details.';
+          setRechartsError(errorMsg);
+          console.error(errorMsg);
+          console.error('Recharts CDN may have failed. Primary CDN: https://unpkg.com/recharts@2.12.7/umd/Recharts.min.js');
+          console.error('Fallback CDN: https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/recharts.min.js');
+          console.error('Verify CDN availability and browser Content Security Policy (CSP).');
+        } else {
+          console.log('Recharts loaded successfully:', window.Recharts);
         }
       }, []);
 
@@ -412,7 +428,7 @@
             </section>
           )}
 
-          <section className="p-6 space-y-4">
+          <section className="p Doubly-linked list-6 space-y-4">
             <div className="flex flex-wrap gap-4">
               <div className="relative flex-1 min-w-[250px]">
                 <Icon name="search" className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5" style={{ color: colors.textMid }} />
@@ -782,24 +798,26 @@
   </script>
   <script>
     window.onload = function() {
-      try {
-        window.lucide.createIcons();
-        const tsCode = document.querySelector('script[type="text/typescript"]').textContent;
-        const jsCode = ts.transpile(tsCode, {
-          target: 'es6',
-          module: 'esnext',
-          jsx: 'react'
-        });
-        const transformed = Babel.transform(jsCode, {
-          presets: ['react']
-        }).code;
-        const script = document.createElement('script');
-        script.textContent = transformed;
-        document.body.appendChild(script);
-      } catch (e) {
-        console.error('Failed to compile or transform code:', e);
-        document.getElementById('error').textContent = 'Error: Failed to load dashboard. Check console for details.';
-      }
+      setTimeout(() => {
+        try {
+          window.lucide.createIcons();
+          const tsCode = document.querySelector('script[type="text/typescript"]').textContent;
+          const jsCode = ts.transpile(tsCode, {
+            target: 'es6',
+            module: 'esnext',
+            jsx: 'react'
+          });
+          const transformed = Babel.transform(jsCode, {
+            presets: ['react']
+          }).code;
+          const script = document.createElement('script');
+          script.textContent = transformed;
+          document.body.appendChild(script);
+        } catch (e) {
+          console.error('Failed to compile or transform code:', e);
+          document.getElementById('error').textContent = 'Error: Failed to load dashboard. Check console for details.';
+        }
+      }, 1000); // 1-second delay to ensure CDNs load
     };
   </script>
 </body>
