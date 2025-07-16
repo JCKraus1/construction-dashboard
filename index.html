@@ -3,878 +3,169 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Construction Project Dashboard</title>
-  <!-- Content Security Policy with nonce -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://unpkg.com 'nonce-xyz123'; connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com;">
-  <!-- Tailwind CSS CDN -->
+  <title>Market 1 CMS</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script src="https://unpkg.com/papaparse@latest/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.15.0/Recharts.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- React and ReactDOM -->
-  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
-  <!-- TypeScript for in-browser compilation -->
-  <script src="https://cdn.jsdelivr.net/npm/typescript@5.0.4/lib/typescript.js"></script>
-  <!-- Babel for JSX -->
-  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.20.15/babel.min.js"></script>
-  <!-- Recharts (primary CDN) -->
-  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.min.js"></script>
-  <!-- Recharts (fallback CDNs) -->
-  <script nonce="xyz123">
-    window.addEventListener('load', () => {
-      setTimeout(() => {
-        if (!window.Recharts) {
-          console.warn('Primary Recharts CDN (unpkg) failed to load, attempting fallback CDNs.');
-          const fallbacks = [
-            'https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/recharts.min.js',
-            'https://unpkg.com/recharts@2.10.14/umd/Recharts.min.js' // Older version as second fallback
-          ];
-          let loaded = false;
-          const loadNextFallback = (index) => {
-            if (index >= fallbacks.length || loaded) return;
-            console.log(`Trying fallback CDN ${index + 1}: ${fallbacks[index]}`);
-            const script = document.createElement('script');
-            script.src = fallbacks[index];
-            script.onload = () => {
-              if (window.Recharts) {
-                loaded = true;
-                console.log(`Recharts loaded successfully from fallback CDN: ${fallbacks[index]}`);
-              } else {
-                loadNextFallback(index + 1);
-              }
-            };
-            script.onerror = () => {
-              console.error(`Fallback Recharts CDN failed to load: ${fallbacks[index]}`);
-              loadNextFallback(index + 1);
-              if (index === fallbacks.length - 1 && !loaded) {
-                const errorDiv = document.getElementById('error');
-                if (errorDiv) {
-                  errorDiv.textContent = 'Error: All Recharts CDNs failed to load. Charts will not be displayed.';
-                } else {
-                  console.error('Error: Cannot find #error div to display Recharts failure message.');
-                }
-              }
-            };
-            document.head.appendChild(script);
-          };
-          loadNextFallback(0);
-        } else {
-          console.log('Recharts loaded successfully from primary CDN.');
-        }
-      }, 2000); // 2-second delay to ensure DOM readiness
-    });
-  </script>
-  <!-- Lucide -->
-  <script src="https://cdn.jsdelivr.net/npm/lucide@0.441.0/dist/umd/lucide.min.js"></script>
-  <!-- XLSX -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.21.0/dist/xlsx.full.min.js"></script>
-  <!-- Lodash -->
-  <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
   <style>
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-    input, select { color: inherit; }
-    #error { color: red; padding: 20px; text-align: center; }
+    body {
+      background-color: #1a1a2e;
+      color: #e5e5e5;
+      font-family: Arial, sans-serif;
+    }
+    .card {
+      background-color: #16213e;
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .accent-bg {
+      background-color: #0f3460;
+    }
+    .chart-container {
+      height: 300px;
+    }
   </style>
 </head>
 <body>
   <div id="root"></div>
-  <div id="error"></div>
-  <script type="text/typescript" nonce="xyz123">
-    const { useState, useEffect, useRef } = React;
-    const XLSX = window.XLSX;
-    const _ = window._;
+  <script type="text/babel">
+    // Defining the React component structure
+    const CMS = () => {
+      const [data, setData] = React.useState([]);
+      const [filteredData, setFilteredData] = React.useState([]);
+      const [supervisorFilter, setSupervisorFilter] = React.useState('');
+      const [loading, setLoading] = React.useState(true);
 
-    interface Project {
-      id?: number;
-      'NTP Number': string;
-      'AREA': string;
-      'Vendor Assignment': string;
-      'Assigned Supervisor': string;
-      'Penguin ID'?: string;
-      'HHP'?: number;
-      'On Track or In Jeopardy': string;
-      'SOW Estimated Cost': number;
-      'Construction Status': string;
-      'Footage UG': number;
-      'Construction Total Percent Complete': number;
-      'Construction Start Date'?: string;
-    }
-
-    const LS_KEY = 'constructionProjects';
-
-    const initialProjects: Project[] = [
-      {
-        id: 1,
-        'NTP Number': 'NTP001',
-        'AREA': 'North',
-        'Vendor Assignment': 'VendorA',
-        'Assigned Supervisor': 'John Doe',
-        'On Track or In Jeopardy': 'On Track',
-        'SOW Estimated Cost': 100000,
-        'Construction Status': 'In Process',
-        'Footage UG': 500,
-        'Construction Total Percent Complete': 0.75,
-        'Construction Start Date': '2025-01-15'
-      },
-      {
-        id: 2,
-        'NTP Number': 'NTP002',
-        'AREA': 'South',
-        'Vendor Assignment': 'VendorB',
-        'Assigned Supervisor': 'Jane Smith',
-        'On Track or In Jeopardy': 'Completed on Track',
-        'SOW Estimated Cost': 200000,
-        'Construction Status': 'Completed',
-        'Footage UG': 1000,
-        'Construction Total Percent Complete': 1,
-        'Construction Start Date': '2024-12-01'
-      }
-    ];
-
-    const Icon: React.FC<{ name: string; className?: string; style?: React.CSSProperties }> = ({ name, className, style }) => {
-      return React.createElement('i', { className: `lucide lucide-${name} ${className || ''}`, style });
-    };
-
-    const ConstructionDashboard: React.FC = () => {
-      const [projects, setProjects] = useState<Project[]>(initialProjects);
-      const [filteredProjects, setFilteredProjects] = useState<Project[]>(initialProjects);
-      const [searchTerm, setSearchTerm] = useState('');
-      const [selectedArea, setSelectedArea] = useState('All Areas');
-      const [selectedVendors, setSelectedVendors] = useState<string[]>([]);
-      const [selectedSupervisors, setSelectedSupervisors] = useState<string[]>([]);
-      const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
-      const [percentMin, setPercentMin] = useState(0);
-      const [percentMax, setPercentMax] = useState(100);
-      const [dateStart, setDateStart] = useState('');
-      const [dateEnd, setDateEnd] = useState('');
-      const [rowsToShow, setRowsToShow] = useState<'10' | '25' | '50' | 'All'>('10');
-      const [showImport, setShowImport] = useState(false);
-      const [showManualEntry, setShowManualEntry] = useState(false);
-      const [currentTime, setCurrentTime] = useState(new Date());
-      const [rechartsError, setRechartsError] = useState('');
-      const fileInputRef = useRef<HTMLInputElement>(null);
-
-      const colors = {
-        primary: '#007BFF',
-        secondary: '#00FFD0',
-        accent: '#FF0080',
-        backgroundDark: '#0F0F19',
-        backgroundMid: '#191928',
-        textLight: 'rgba(255, 255, 255, 0.9)',
-        textMid: 'rgba(255, 255, 255, 0.7)',
-        success: '#00FF80',
-        warning: '#FFC107',
-        danger: '#FF3D71'
-      };
-      const chartColors = [colors.primary, colors.secondary, colors.accent, colors.success, colors.warning];
-
-      useEffect(() => {
-        if (!window.Recharts) {
-          const errorMsg = 'Recharts library failed to load. Charts will not be displayed. Check console for details.';
-          setRechartsError(errorMsg);
-          console.error(errorMsg);
-          console.error('Primary CDN: https://unpkg.com/recharts@2.12.7/umd/Recharts.min.js');
-          console.error('Fallback CDNs: https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/recharts.min.js, https://unpkg.com/recharts@2.10.14/umd/Recharts.min.js');
-          console.error('Verify CDN availability, network restrictions, or browser extensions.');
-        } else {
-          console.log('Recharts loaded successfully:', window.Recharts);
-        }
-      }, []);
-
-      useEffect(() => {
-        const t = setInterval(() => setCurrentTime(new Date()), 1000);
-        return () => clearInterval(t);
-      }, []);
-
-      useEffect(() => {
-        const stored = localStorage.getItem(LS_KEY);
-        if (stored) {
-          try {
-            const parsed: Project[] = JSON.parse(stored);
-            setProjects(parsed);
-          } catch (e) {
-            console.error('Failed to parse stored projects', e);
-          }
-        }
-      }, []);
-
-      useEffect(() => {
-        localStorage.setItem(LS_KEY, JSON.stringify(projects));
-      }, [projects]);
-
-      useEffect(() => {
-        let filtered = [...projects];
-        if (searchTerm) {
-          const term = searchTerm.toLowerCase();
-          filtered = filtered.filter(p =>
-            (p['NTP Number']?.toLowerCase()?.includes(term) || false) ||
-            (p['AREA']?.toLowerCase()?.includes(term) || false) ||
-            (p['Vendor Assignment']?.toLowerCase()?.includes(term) || false) ||
-            (p['Assigned Supervisor']?.toLowerCase()?.includes(term) || false) ||
-            (p['Penguin ID']?.toLowerCase()?.includes(term) || false)
-          );
-        }
-        if (selectedArea !== 'All Areas') {
-          filtered = filtered.filter(p => p['AREA'] === selectedArea);
-        }
-        if (selectedVendors.length) {
-          filtered = filtered.filter(p => selectedVendors.includes(p['Vendor Assignment']));
-        }
-        if (selectedSupervisors.length) {
-          filtered = filtered.filter(p => selectedSupervisors.includes(p['Assigned Supervisor']));
-        }
-        if (selectedStatuses.length) {
-          filtered = filtered.filter(p => selectedStatuses.includes(p['Construction Status']));
-        }
-        filtered = filtered.filter(p => {
-          const pct = (p['Construction Total Percent Complete'] || 0) * 100;
-          return pct >= percentMin && pct <= percentMax;
-        });
-        if (dateStart || dateEnd) {
-          filtered = filtered.filter(p => {
-            const dStr = p['Construction Start Date'];
-            if (!dStr) return false;
-            const d = new Date(dStr);
-            if (isNaN(d.getTime())) return false;
-            if (dateStart && d < new Date(dateStart)) return false;
-            if (dateEnd && d > new Date(dateEnd)) return false;
-            return true;
-          });
-        }
-        setFilteredProjects(filtered);
-      }, [
-        projects, searchTerm, selectedArea, selectedVendors, selectedSupervisors,
-        selectedStatuses, percentMin, percentMax, dateStart, dateEnd
-      ]);
-
-      const metrics = React.useMemo(() => {
-        const totalProjects = projects.length;
-        const totalCost = _.sumBy(projects, p => p['SOW Estimated Cost'] || 0);
-        const onTrackCount = projects.filter(p =>
-          ['On Track', 'Completed on Track'].includes(p['On Track or In Jeopardy'])
-        ).length;
-        const completedCount = projects.filter(p => p['Construction Status'] === 'Completed').length;
-        const totalFootage = _.sumBy(projects, p => p['Footage UG'] || 0);
-        return {
-          totalProjects,
-          totalCost,
-          onTrackPercentage: totalProjects ? (onTrackCount / totalProjects) * 100 : 0,
-          completedCount,
-          totalFootage
-        };
-      }, [projects]);
-
-      const { areaData, statusData, vendorData, timeSeriesData } = React.useMemo(() => {
-        const defaultData = { name: 'No Data', value: 0 };
-        const defaultTimeSeries = [{ month: 'No Data', footage: 0, cost: 0 }];
-        const areaGroups = _.groupBy(filteredProjects, 'AREA');
-        const area = Object.entries(areaGroups).length
-          ? Object.entries(areaGroups).map(([name, arr]) => ({ name, value: arr.length }))
-          : [defaultData];
-        const statusGroups = _.groupBy(filteredProjects, 'Construction Status');
-        const status = Object.entries(statusGroups).length
-          ? Object.entries(statusGroups).map(([name, arr]) => ({ name, value: arr.length }))
-          : [defaultData];
-        const vendorGroups = _.groupBy(filteredProjects, 'Vendor Assignment');
-        const vendor = Object.entries(vendorGroups).length
-          ? Object.entries(vendorGroups).slice(0, 10).map(([name, arr]) => ({
-              name,
-              avgCompletion: _.meanBy(arr, a => (a['Construction Total Percent Complete'] || 0) * 100)
-            }))
-          : [{ name: 'No Data', avgCompletion: 0 }];
-        const byMonth = _.groupBy(filteredProjects, p => {
-          const d = new Date(p['Construction Start Date'] || '');
-          if (isNaN(d.getTime())) return 'Unknown';
-          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        });
-        const timeSeries = Object.entries(byMonth).length
-          ? Object.entries(byMonth)
-              .filter(([m]) => m !== 'Unknown')
-              .map(([month, arr]) => ({
-                month,
-                footage: _.sumBy(arr, a => a['Footage UG'] || 0),
-                cost: _.sumBy(arr, a => a['SOW Estimated Cost'] || 0)
-              }))
-              .sort((a, b) => a.month.localeCompare(b.month))
-          : defaultTimeSeries;
-        return { areaData: area, statusData: status, vendorData: vendor, timeSeriesData: timeSeries };
-      }, [filteredProjects]);
-
-      const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = evt => {
-          const bstr = evt.target?.result as string;
-          const wb = XLSX.read(bstr, { type: 'binary' });
-          const wsname = wb.SheetNames[0];
-          const ws = wb.Sheets[wsname];
-          const data: Project[] = XLSX.utils.sheet_to_json(ws);
-          data.forEach(p => {
-            if (typeof p['Construction Start Date'] === 'number') {
-              try {
-                const date = XLSX.SSF.parse_date_code(p['Construction Start Date']);
-                const iso = new Date(date.y, date.m - 1, date.d).toISOString().split('T')[0];
-                p['Construction Start Date'] = iso;
-              } catch (e) {
-                console.warn('Failed to parse date for project', p, e);
-                p['Construction Start Date'] = '';
-              }
+      // Load data from CSV or manual input
+      React.useEffect(() => {
+        const csvData = loadFileData("powerapps-test.csv");
+        if (csvData) {
+          const parsedData = Papa.parse(csvData, {
+            header: true,
+            skipEmptyLines: true,
+            transformHeader: (header) => header.trim(),
+            transform: (value) => value.trim(),
+            complete: (result) => {
+              const cleanedData = result.data.map(row => ({
+                ...row,
+                'SOW Estimated Cost': parseFloat(row['SOW Estimated Cost']) || 0
+              })).filter(row => row['NTP Number']);
+              setData(cleanedData);
+              setFilteredData(cleanedData);
+              setLoading(false);
             }
-            p.id = Date.now() + Math.random();
           });
-          setProjects(data);
-          setShowImport(false);
-        };
-        reader.readAsBinaryString(file);
+        }
+      }, []);
+
+      // Filter by supervisor
+      const handleFilterChange = (e) => {
+        const value = e.target.value;
+        setSupervisorFilter(value);
+        const filtered = data.filter(row =>
+          !value || row['Assigned Supervisor'] === value
+        );
+        setFilteredData(filtered);
       };
 
-      const handleManualEntry = (formData: Project) => {
-        formData.id = Date.now();
-        setProjects(prev => [...prev, formData]);
-        setShowManualEntry(false);
-      };
-
-      const exportToExcel = () => {
-        const ws = XLSX.utils.json_to_sheet(filteredProjects);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Projects');
-        XLSX.writeFile(wb, `construction-projects-${new Date().toISOString().split('T')[0]}.xlsx`);
-      };
-
-      const allAreas = ['All Areas', ..._.uniq(projects.map(p => p['AREA']).filter(Boolean))];
-      const allVendors = _.uniq(projects.map(p => p['Vendor Assignment']).filter(Boolean));
-      const allSupervisors = _.uniq(projects.map(p => p['Assigned Supervisor']).filter(Boolean));
-      const allStatuses = _.uniq(projects.map(p => p['Construction Status']).filter(Boolean));
-
-      const rowsNumber = rowsToShow === 'All' ? filteredProjects.length : parseInt(rowsToShow, 10);
-      const displayedRows = filteredProjects.slice(0, rowsNumber);
-
-      // Recharts components, only used if window.Recharts is defined
-      const Recharts = window.Recharts;
-      const LineChart = Recharts?.LineChart;
-      const Line = Recharts?.Line;
-      const BarChart = Recharts?.BarChart;
-      const Bar = Recharts?.Bar;
-      const RePieChart = Recharts?.PieChart;
-      const Pie = Recharts?.Pie;
-      const Cell = Recharts?.Cell;
-      const XAxis = Recharts?.XAxis;
-      const YAxis = Recharts?.YAxis;
-      const CartesianGrid = Recharts?.CartesianGrid;
-      const Tooltip = Recharts?.Tooltip;
-      const ResponsiveContainer = Recharts?.ResponsiveContainer;
-      const Legend = Recharts?.Legend;
+      // Calculate total cost
+      const totalCost = filteredData.reduce((sum, row) => sum + (parseFloat(row['SOW Estimated Cost']) || 0), 0);
 
       return (
-        <div style={{ backgroundColor: colors.backgroundDark, color: colors.textLight, minHeight: '100vh' }}>
-          <header className="p-6" style={{ backgroundColor: colors.backgroundMid }}>
-            <div className="flex justify-between items-center">
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                Construction Project Dashboard
-              </h1>
-              <div className="text-sm" style={{ color: colors.textMid }}>
-                {currentTime.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+        <div className="p-4">
+          <h1 className="text-2xl font-bold mb-4">Market 1 CMS</h1>
+          {loading ? (
+            <p>Loading...</p>
+          ) : (
+            <>
+              <div className="flex mb-4">
+                <select
+                  className="p-2 bg-gray-800 text-white rounded"
+                  value={supervisorFilter}
+                  onChange={handleFilterChange}
+                >
+                  <option value="">All Supervisors</option>
+                  {[...new Set(data.map(row => row['Assigned Supervisor']))]
+                    .filter(sup => sup)
+                    .map(sup => (
+                      <option key={sup} value={sup}>{sup}</option>
+                    ))}
+                </select>
               </div>
-            </div>
-          </header>
-
-          {rechartsError && (
-            <div className="p-4 text-center" style={{ color: colors.danger }}>
-              {rechartsError}
-            </div>
-          )}
-
-          <section className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { icon: 'database', label: 'Total Projects', value: metrics.totalProjects.toLocaleString() },
-              { icon: 'dollar-sign', label: 'Total Cost', value: `$${(metrics.totalCost / 1_000_000).toFixed(1)}M` },
-              { icon: 'check-circle', label: 'On Track', value: `${metrics.onTrackPercentage.toFixed(0)}%` },
-              { icon: 'trophy', label: 'Completed', value: metrics.completedCount.toLocaleString() }
-            ].map(card => (
-              <div key={card.label}
-                className="p-6 rounded-xl backdrop-blur-sm transition-all duration-300 hover:scale-105"
-                style={{ backgroundColor: colors.backgroundMid, border: `1px solid ${colors.primary}40` }}>
-                <Icon name={card.icon} className="w-10 h-10" style={{ color: colors.primary }} />
-                <div className="text-3xl font-bold mt-2">{card.value}</div>
-                <div className="text-sm" style={{ color: colors.textMid }}>{card.label}</div>
-              </div>
-            ))}
-          </section>
-
-          {Recharts && (
-            <section className="px-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="p-6 rounded-xl" style={{ backgroundColor: colors.backgroundMid }}>
-                <h3 className="text-xl font-semibold mb-4">Projects by Area</h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={areaData}>
-                    <CartesianGrid strokeDasharray="4 2" stroke={`${colors.textMid}40`} />
-                    <XAxis dataKey="name" stroke={colors.textMid} />
-                    <YAxis stroke={colors.textMid} />
-                    <Tooltip contentStyle={{ backgroundColor: colors.backgroundDark }} />
-                    <Bar dataKey="value">
-                      {areaData.map((_, idx) => (
-                        <Cell key={idx} fill={chartColors[idx % chartColors.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="p-6 rounded-xl" style={{ backgroundColor: colors.backgroundMid }}>
-                <h3 className="text-xl font-semibold mb-4">Status Distribution</h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <RePieChart>
-                    <Pie data={statusData} dataKey="value" cx="50%" cy="50%" outerRadius={100} label>
-                      {statusData.map((_, idx) => (
-                        <Cell key={idx} fill={chartColors[idx % chartColors.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={{ backgroundColor: colors.backgroundDark }} />
-                  </RePieChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="lg:col-span-2 p-6 rounded-xl" style={{ backgroundColor: colors.backgroundMid }}>
-                <h3 className="text-xl font-semibold mb-4">Top Vendor Performance</h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={vendorData}>
-                    <CartesianGrid strokeDasharray="4 2" stroke={`${colors.textMid}40`} />
-                    <XAxis dataKey="name" stroke={colors.textMid} angle={-30} textAnchor="end" height={100} />
-                    <YAxis stroke={colors.textMid} />
-                    <Tooltip contentStyle={{ backgroundColor: colors.backgroundDark }} />
-                    <Bar dataKey="avgCompletion" name="Avg % Complete">
-                      {vendorData.map((_, idx) => (
-                        <Cell key={idx} fill={chartColors[idx % chartColors.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="lg:col-span-2 p-6 rounded-xl" style={{ backgroundColor: colors.backgroundMid }}>
-                <h3 className="text-xl font-semibold mb-4">Monthly Footage (Start Date)</h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={timeSeriesData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={`${colors.textMid}40`} />
-                    <XAxis dataKey="month" stroke={colors.textMid} />
-                    <YAxis stroke={colors.textMid} />
-                    <Tooltip contentStyle={{ backgroundColor: colors.backgroundDark }} />
-                    <Legend />
-                    <Line type="monotone" dataKey="footage" stroke={colors.primary} strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </section>
-          )}
-
-          <section className="p-6 space-y-4">
-            <div className="flex flex-wrap gap-4">
-              <div className="relative flex-1 min-w-[250px]">
-                <Icon name="search" className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5" style={{ color: colors.textMid }} />
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 rounded-lg outline-none"
-                  style={{ backgroundColor: colors.backgroundMid, border: `1px solid ${colors.primary}40`, color: colors.textLight }}
-                />
-              </div>
-              <select
-                value={selectedArea}
-                onChange={e => setSelectedArea(e.target.value)}
-                className="px-4 py-2 rounded-lg outline-none"
-                style={{ backgroundColor: colors.backgroundMid, border: `1px solid ${colors.primary}40`, color: colors.textLight }}
-              >
-                {allAreas.map(a => <option key={a}>{a}</option>)}
-              </select>
-              <select
-                value={rowsToShow}
-                onChange={e => setRowsToShow(e.target.value)}
-                className="px-4 py-2 rounded-lg outline-none"
-                style={{ backgroundColor: colors.backgroundMid, border: `1px solid ${colors.primary}40`, color: colors.textLight }}
-              >
-                {['10', '25', '50', 'All'].map(n => <option key={n} value={n}>{n} rows</option>)}
-              </select>
-              <button
-                onClick={() => setShowImport(true)}
-                className="flex items-center gap-2 px-6 py-2 rounded-lg font-semibold hover:scale-105 transition"
-                style={{ backgroundColor: colors.primary, color: colors.textLight }}
-              >
-                <Icon name="upload" className="w-4 h-4" /> Import
-              </button>
-              <button
-                onClick={() => setShowManualEntry(true)}
-                className="flex items-center gap-2 px-6 py-2 rounded-lg font-semibold hover:scale-105 transition"
-                style={{ backgroundColor: colors.secondary, color: colors.backgroundDark }}
-              >
-                <Icon name="plus" className="w-4 h-4" /> Add
-              </button>
-              <button
-                onClick={exportToExcel}
-                className="flex items-center gap-2 px-6 py-2 rounded-lg font-semibold hover:scale-105 transition"
-                style={{ backgroundColor: colors.accent, color: colors.textLight }}
-              >
-                <Icon name="download" className="w-4 h-4" /> Export
-              </button>
-            </div>
-
-            <div className="flex flex-wrap gap-4">
-              <MultiSelect label="Vendors" options={allVendors} selected={selectedVendors} setSelected={setSelectedVendors} colors={colors} />
-              <MultiSelect label="Supervisors" options={allSupervisors} selected={selectedSupervisors} setSelected={setSelectedSupervisors} colors={colors} />
-              <MultiSelect label="Statuses" options={allStatuses} selected={selectedStatuses} setSelected={setSelectedStatuses} colors={colors} />
-              <div>
-                <label className="block text-xs mb-1" style={{ color: colors.textMid }}>Completion %</label>
-                <div className="flex items-center gap-1">
-                  <input
-                    type="number"
-                    value={percentMin}
-                    min={0}
-                    max={percentMax - 1}
-                    onChange={e => setPercentMin(Number(e.target.value) || 0)}
-                    className="w-16 px-2 py-1 rounded"
-                    style={{ backgroundColor: colors.backgroundMid, color: colors.textLight }}
-                  />
-                  <span>-</span>
-                  <input
-                    type="number"
-                    value={percentMax}
-                    min={percentMin + 1}
-                    max={100}
-                    onChange={e => setPercentMax(Number(e.target.value) || 100)}
-                    className="w-16 px-2 py-1 rounded"
-                    style={{ backgroundColor: colors.backgroundMid, color: colors.textLight }}
-                  />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="card">
+                  <h2>Total Projects</h2>
+                  <Recharts.PieChart width={300} height={200}>
+                    <Recharts.Pie
+                      data={[{ name: 'Total', value: filteredData.length }]}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      fill="#00d4ff"
+                    />
+                  </Recharts.PieChart>
+                  <p>{filteredData.length}</p>
+                </div>
+                <div className="card">
+                  <h2>Total Cost</h2>
+                  <p>${totalCost.toLocaleString()}</p>
                 </div>
               </div>
-              <div>
-                <label className="block text-xs mb-1" style={{ color: colors.textMid }}>Start Date From</label>
-                <input
-                  type="date"
-                  value={dateStart}
-                  onChange={e => setDateStart(e.target.value)}
-                  className="px-2 py-1 rounded"
-                  style={{ backgroundColor: colors.backgroundMid, color: colors.textLight }}
-                />
+              <div className="mt-4">
+                <h2 className="text-xl">Project Costs by Supervisor</h2>
+                <Recharts.BarChart
+                  width={600}
+                  height={300}
+                  data={Object.entries(
+                    filteredData.reduce((acc, row) => {
+                      const sup = row['Assigned Supervisor'] || 'Unassigned';
+                      acc[sup] = (acc[sup] || 0) + (parseFloat(row['SOW Estimated Cost']) || 0);
+                      return acc;
+                    }, {})
+                  ).map(([sup, cost]) => ({ supervisor: sup, cost }))}
+                >
+                  <Recharts.CartesianGrid strokeDasharray="3 3" />
+                  <Recharts.XAxis dataKey="supervisor" />
+                  <Recharts.YAxis />
+                  <Recharts.Bar dataKey="cost" fill="#00d4ff" />
+                  <Recharts.Tooltip />
+                </Recharts.BarChart>
               </div>
-              <div>
-                <label className="block text-xs mb-1" style={{ color: colors.textMid }}>To</label>
-                <input
-                  type="date"
-                  value={dateEnd}
-                  onChange={e => setDateEnd(e.target.value)}
-                  className="px-2 py-1 rounded"
-                  style={{ backgroundColor: colors.backgroundMid, color: colors.textLight }}
-                />
-              </div>
-            </div>
-          </section>
-
-          <section className="px-6 pb-10">
-            <div className="rounded-xl overflow-hidden" style={{ backgroundColor: colors.backgroundMid }}>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead style={{ backgroundColor: colors.backgroundDark }}>
-                    {['NTP Number', 'Area', 'Vendor', 'Supervisor', 'Status', 'Cost', 'Progress', 'Start Date'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left">{h}</th>
-                    ))}
+              <div className="mt-4">
+                <h2 className="text-xl">Projects List</h2>
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-gray-800">
+                      <th>NTP Number</th>
+                      <th>Supervisor</th>
+                      <th>Cost</th>
+                    </tr>
                   </thead>
                   <tbody>
-                    {displayedRows.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="px-4 py-3 text-center" style={{ color: colors.textMid }}>
-                          No projects available. Import or add data to get started.
-                        </td>
+                    {filteredData.map((row, index) => (
+                      <tr key={index} className="border-t border-gray-700">
+                        <td>{row['NTP Number']}</td>
+                        <td>{row['Assigned Supervisor']}</td>
+                        <td>${parseFloat(row['SOW Estimated Cost']).toLocaleString()}</td>
                       </tr>
-                    ) : (
-                      displayedRows.map(p => (
-                        <tr key={p.id} className="border-t hover:bg-black/20" style={{ borderColor: `${colors.textMid}20` }}>
-                          <td className="px-4 py-3">{p['NTP Number'] || '-'}</td>
-                          <td className="px-4 py-3">{p['AREA'] || '-'}</td>
-                          <td className="px-4 py-3">{p['Vendor Assignment'] || '-'}</td>
-                          <td className="px-4 py-3">{p['Assigned Supervisor'] || '-'}</td>
-                          <td className="px-4 py-3">{p['Construction Status'] || '-'}</td>
-                          <td className="px-4 py-3 text-right">${(p['SOW Estimated Cost'] || 0).toLocaleString()}</td>
-                          <td className="px-4 py-3 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <div className="w-20 bg-gray-700 rounded-full h-2">
-                                <div
-                                  className="h-2 rounded-full transition-all"
-                                  style={{
-                                    width: `${(p['Construction Total Percent Complete'] || 0) * 100}%`,
-                                    background: `linear-gradient(90deg, ${colors.primary}, ${colors.secondary})`
-                                  }}
-                                />
-                              </div>
-                              <span className="text-sm">
-                                {((p['Construction Total Percent Complete'] || 0) * 100).toFixed(0)}%
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">{p['Construction Start Date'] || '-'}</td>
-                        </tr>
-                      ))
-                    )}
+                    ))}
                   </tbody>
                 </table>
               </div>
-              <div className="p-4 text-center" style={{ color: colors.textMid }}>
-                Showing {rowsNumber} of {filteredProjects.length} projects
-              </div>
-            </div>
-          </section>
-
-          {showImport && (
-            <Modal onClose={() => setShowImport(false)} colors={colors}>
-              <h2 className="text-2xl font-bold mb-4">Import Excel Data</h2>
-              <div className="space-y-4">
-                <div className="p-8 border-2 border-dashed rounded-xl text-center" style={{ borderColor: `${colors.primary}40` }}>
-                  <Icon name="file-spreadsheet" className="w-12 h-12 mx-auto mb-4" style={{ color: colors.primary }} />
-                  <p className="mb-4">Select an Excel file (.xlsx or .xls)</p>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    accept=".xlsx,.xls"
-                    className="hidden"
-                    onChange={handleFileUpload}
-                  />
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-6 py-2 rounded-lg font-semibold"
-                    style={{ backgroundColor: colors.primary, color: colors.textLight }}
-                  >
-                    Choose File
-                  </button>
-                </div>
-                <p className="text-xs" style={{ color: colors.textMid }}>
-                  Existing data will be replaced. All columns should be present, including "Construction Start Date".
-                </p>
-              </div>
-            </Modal>
-          )}
-
-          {showManualEntry && (
-            <ManualEntryForm onClose={() => setShowManualEntry(false)} onSubmit={handleManualEntry} colors={colors} />
+            </>
           )}
         </div>
       );
     };
 
-    const MultiSelect: React.FC<{
-      label: string;
-      options: string[];
-      selected: string[];
-      setSelected: (v: string[]) => void;
-      colors: any;
-    }> = ({ label, options, selected, setSelected, colors }) => {
-      const toggle = (val: string) => {
-        setSelected(selected.includes(val) ? selected.filter(v => v !== val) : [...selected, val]);
-      };
-      return (
-        <div>
-          <label className="block text-xs mb-1" style={{ color: colors.textMid }}>{label}</label>
-          <div className="flex flex-wrap gap-1 max-w-[160px]">
-            {options.map(opt => (
-              <span
-                key={opt}
-                onClick={() => toggle(opt)}
-                className="px-2 py-1 rounded cursor-pointer text-xs"
-                style={{
-                  backgroundColor: selected.includes(opt) ? colors.primary : colors.backgroundMid,
-                  border: `1px solid ${colors.primary}40`
-                }}
-              >
-                {opt}
-              </span>
-            ))}
-          </div>
-        </div>
-      );
-    };
-
-    const Modal: React.FC<{
-      onClose: () => void;
-      children: React.ReactNode;
-      colors: any;
-    }> = ({ onClose, children, colors }) => (
-      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-        <div
-          className="w-full max-w-3xl p-6 rounded-2xl"
-          style={{ backgroundColor: colors.backgroundMid }}
-        >
-          <button className="absolute top-4 right-4" onClick={onClose}>
-            <Icon name="x" className="w-6 h-6" style={{ color: colors.textLight }} />
-          </button>
-          {children}
-        </div>
-      </div>
-    );
-
-    const ManualEntryForm: React.FC<{
-      onClose: () => void;
-      onSubmit: (p: Project) => void;
-      colors: any;
-    }> = ({ onClose, onSubmit, colors }) => {
-      const [formData, setFormData] = useState<Project>({
-        'NTP Number': '',
-        'AREA': '',
-        'Vendor Assignment': '',
-        'Assigned Supervisor': '',
-        'On Track or In Jeopardy': 'On Track',
-        'SOW Estimated Cost': 0,
-        'Construction Status': 'Not Started',
-        'Footage UG': 0,
-        'Construction Total Percent Complete': 0,
-        'Construction Start Date': ''
-      });
-
-      const handleChange = (field: keyof Project, value: any) => setFormData({ ...formData, [field]: value });
-
-      const handleSubmit = () => {
-        if (!formData['NTP Number'] || !formData['AREA'] || !formData['Vendor Assignment'] || !formData['Assigned Supervisor'] || !formData['Construction Start Date']) {
-          alert('Please fill in all required fields.');
-          return;
-        }
-        onSubmit(formData);
-      };
-
-      return (
-        <Modal onClose={onClose} colors={colors}>
-          <h2 className="text-2xl font-bold mb-4">Add New Project</h2>
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {['NTP Number', 'AREA', 'Vendor Assignment', 'Assigned Supervisor'].map(f => (
-                <input
-                  key={f}
-                  required
-                  placeholder={f}
-                  value={formData[f] || ''}
-                  onChange={e => handleChange(f, e.target.value)}
-                  className="px-3 py-2 rounded outline-none"
-                  style={{ backgroundColor: colors.backgroundMid, color: colors.textLight }}
-                />
-              ))}
-              <input
-                type="date"
-                required
-                placeholder="Construction Start Date"
-                value={formData['Construction Start Date'] || ''}
-                onChange={e => handleChange('Construction Start Date', e.target.value)}
-                className="px-3 py-2 rounded outline-none"
-                style={{ backgroundColor: colors.backgroundMid, color: colors.textLight }}
-              />
-              <input
-                type="number"
-                placeholder="SOW Estimated Cost"
-                value={formData['SOW Estimated Cost'] || 0}
-                onChange={e => handleChange('SOW Estimated Cost', Number(e.target.value))}
-                className="px-3 py-2 rounded outline-none"
-                style={{ backgroundColor: colors.backgroundMid, color: colors.textLight }}
-              />
-              <input
-                type="number"
-                placeholder="Footage UG"
-                value={formData['Footage UG'] || 0}
-                onChange={e => handleChange('Footage UG', Number(e.target.value))}
-                className="px-3 py-2 rounded outline-none"
-                style={{ backgroundColor: colors.backgroundMid, color: colors.textLight }}
-              />
-              <div>
-                <label className="block text-xs mb-1" style={{ color: colors.textMid }}>Status</label>
-                <select
-                  value={formData['Construction Status']}
-                  onChange={e => handleChange('Construction Status', e.target.value)}
-                  className="w-full px-3 py-2 rounded outline-none"
-                  style={{ backgroundColor: colors.backgroundMid, color: colors.textLight }}
-                >
-                  <option>Not Started</option>
-                  <option>In Process</option>
-                  <option>Completed</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs mb-1" style={{ color: colors.textMid }}>Percent Complete (0-100)</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={(formData['Construction Total Percent Complete'] || 0) * 100}
-                  onChange={e => handleChange('Construction Total Percent Complete', Number(e.target.value) / 100)}
-                  className="w-full px-3 py-2 rounded outline-none"
-                  style={{ backgroundColor: colors.backgroundMid, color: colors.textLight }}
-                />
-              </div>
-            </div>
-            <div className="flex gap-4">
-              <button
-                type="button"
-                className="flex-1 py-2 rounded"
-                style={{ backgroundColor: colors.success, color: colors.backgroundDark }}
-                onClick={handleSubmit}
-              >
-                Save
-              </button>
-              <button
-                type="button"
-                className="flex-1 py-2 rounded"
-                style={{ backgroundColor: colors.danger, color: colors.textLight }}
-                onClick={onClose}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </Modal>
-      );
-    };
-
-    const root = document.getElementById('root');
-    if (root) {
-      try {
-        ReactDOM.render(<ConstructionDashboard />, root);
-      } catch (e) {
-        console.error('Failed to render React component:', e);
-        const errorDiv = document.getElementById('error');
-        if (errorDiv) {
-          errorDiv.textContent = 'Error: Failed to render dashboard. Check console for details.';
-        }
-      }
-    } else {
-      console.error('Error: Root element not found.');
-      const errorDiv = document.getElementById('error');
-      if (errorDiv) {
-        errorDiv.textContent = 'Error: Root element not found.';
-      }
-    }
-  </script>
-  <script nonce="xyz123">
-    window.onload = function() {
-      setTimeout(() => {
-        try {
-          window.lucide.createIcons();
-          const tsCode = document.querySelector('script[type="text/typescript"]').textContent;
-          const jsCode = ts.transpile(tsCode, {
-            target: 'es6',
-            module: 'esnext',
-            jsx: 'react'
-          });
-          const transformed = Babel.transform(jsCode, {
-            presets: ['react']
-          }).code;
-          const script = document.createElement('script');
-          script.textContent = transformed;
-          script.setAttribute('nonce', 'xyz123');
-          document.body.appendChild(script);
-        } catch (e) {
-          console.error('Failed to compile or transform code:', e);
-          const errorDiv = document.getElementById('error');
-          if (errorDiv) {
-            errorDiv.textContent = 'Error: Failed to load dashboard due to compilation issues. Check console for details.';
-          } else {
-            console.error('Error: Cannot find #error div to display compilation failure message.');
-          }
-        }
-      }, 1000);
-    };
+    // Render the React app
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<CMS />);
   </script>
 </body>
 </html>
