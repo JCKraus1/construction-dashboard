@@ -4,11 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Market 1 CMS</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/papaparse@latest/papaparse.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.15.0/Recharts.min.js"></script>
+  <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
@@ -31,141 +30,6 @@
 </head>
 <body>
   <div id="root"></div>
-  <script type="text/babel">
-    // Defining the React component structure
-    const CMS = () => {
-      const [data, setData] = React.useState([]);
-      const [filteredData, setFilteredData] = React.useState([]);
-      const [supervisorFilter, setSupervisorFilter] = React.useState('');
-      const [loading, setLoading] = React.useState(true);
-
-      // Load data from CSV or manual input
-      React.useEffect(() => {
-        const csvData = loadFileData("powerapps-test.csv");
-        if (csvData) {
-          const parsedData = Papa.parse(csvData, {
-            header: true,
-            skipEmptyLines: true,
-            transformHeader: (header) => header.trim(),
-            transform: (value) => value.trim(),
-            complete: (result) => {
-              const cleanedData = result.data.map(row => ({
-                ...row,
-                'SOW Estimated Cost': parseFloat(row['SOW Estimated Cost']) || 0
-              })).filter(row => row['NTP Number']);
-              setData(cleanedData);
-              setFilteredData(cleanedData);
-              setLoading(false);
-            }
-          });
-        }
-      }, []);
-
-      // Filter by supervisor
-      const handleFilterChange = (e) => {
-        const value = e.target.value;
-        setSupervisorFilter(value);
-        const filtered = data.filter(row =>
-          !value || row['Assigned Supervisor'] === value
-        );
-        setFilteredData(filtered);
-      };
-
-      // Calculate total cost
-      const totalCost = filteredData.reduce((sum, row) => sum + (parseFloat(row['SOW Estimated Cost']) || 0), 0);
-
-      return (
-        <div className="p-4">
-          <h1 className="text-2xl font-bold mb-4">Market 1 CMS</h1>
-          {loading ? (
-            <p>Loading...</p>
-          ) : (
-            <>
-              <div className="flex mb-4">
-                <select
-                  className="p-2 bg-gray-800 text-white rounded"
-                  value={supervisorFilter}
-                  onChange={handleFilterChange}
-                >
-                  <option value="">All Supervisors</option>
-                  {[...new Set(data.map(row => row['Assigned Supervisor']))]
-                    .filter(sup => sup)
-                    .map(sup => (
-                      <option key={sup} value={sup}>{sup}</option>
-                    ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="card">
-                  <h2>Total Projects</h2>
-                  <Recharts.PieChart width={300} height={200}>
-                    <Recharts.Pie
-                      data={[{ name: 'Total', value: filteredData.length }]}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      fill="#00d4ff"
-                    />
-                  </Recharts.PieChart>
-                  <p>{filteredData.length}</p>
-                </div>
-                <div className="card">
-                  <h2>Total Cost</h2>
-                  <p>${totalCost.toLocaleString()}</p>
-                </div>
-              </div>
-              <div className="mt-4">
-                <h2 className="text-xl">Project Costs by Supervisor</h2>
-                <Recharts.BarChart
-                  width={600}
-                  height={300}
-                  data={Object.entries(
-                    filteredData.reduce((acc, row) => {
-                      const sup = row['Assigned Supervisor'] || 'Unassigned';
-                      acc[sup] = (acc[sup] || 0) + (parseFloat(row['SOW Estimated Cost']) || 0);
-                      return acc;
-                    }, {})
-                  ).map(([sup, cost]) => ({ supervisor: sup, cost }))}
-                >
-                  <Recharts.CartesianGrid strokeDasharray="3 3" />
-                  <Recharts.XAxis dataKey="supervisor" />
-                  <Recharts.YAxis />
-                  <Recharts.Bar dataKey="cost" fill="#00d4ff" />
-                  <Recharts.Tooltip />
-                </Recharts.BarChart>
-              </div>
-              <div className="mt-4">
-                <h2 className="text-xl">Projects List</h2>
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="bg-gray-800">
-                      <th>NTP Number</th>
-                      <th>Supervisor</th>
-                      <th>Cost</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredData.map((row, index) => (
-                      <tr key={index} className="border-t border-gray-700">
-                        <td>{row['NTP Number']}</td>
-                        <td>{row['Assigned Supervisor']}</td>
-                        <td>${parseFloat(row['SOW Estimated Cost']).toLocaleString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-        </div>
-      );
-    };
-
-    // Render the React app
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<CMS />);
-  </script>
+  <script src="cms.js"></script>
 </body>
 </html>
